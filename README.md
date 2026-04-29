@@ -43,6 +43,153 @@ Both channels encrypted independently
 Both channels authenticated
 Session protected through token validation
 ```
+# Certificate Generation (OpenSSL)
+
+This project uses **Mutual TLS (mTLS)** with a self-managed Certificate Authority (CA).
+
+Certificates were generated using **OpenSSL**.
+
+## Generate Certificate Authority (CA)
+
+Create CA private key:
+
+```bash id="c1"
+openssl genrsa -out ca_key.pem 4096
+```
+
+Generate CA certificate:
+
+```bash id="c2"
+openssl req -x509 -new -nodes -key ca_key.pem -sha256 -days 365 \
+-out ca_cert.pem
+```
+
+---
+
+# Generate Host Certificate
+
+Generate host private key:
+
+```bash id="c3"
+openssl genrsa -out host_key.pem 4096
+```
+
+Generate certificate signing request:
+
+```bash id="c4"
+openssl req -new -key host_key.pem -out host.csr
+```
+
+Sign host certificate with CA:
+
+```bash id="c5"
+openssl x509 -req -in host.csr \
+CA ca_cert.pem -CAkey ca_key.pem \
+-CAcreateserial -out host_cert.pem \
+-days 365 -sha256
+```
+
+---
+
+# Generate Client Certificate
+
+Generate client private key:
+
+```bash id="c6"
+openssl genrsa -out client_key.pem 4096
+```
+
+Generate client CSR:
+
+```bash id="c7"
+openssl req -new -key client_key.pem -out client.csr
+```
+
+Sign client certificate:
+
+```bash id="c8"
+openssl x509 -req -in client.csr \
+-CA ca_cert.pem -CAkey ca_key.pem \
+-CAcreateserial -out client_cert.pem \
+-days 365 -sha256
+```
+
+---
+
+# Certificate Layout
+
+```bash id="c9"
+certs/
+├── ca_cert.pem
+├── ca_key.pem
+├── host_cert.pem
+├── host_key.pem
+├── client_cert.pem
+└── client_key.pem
+```
+
+---
+
+# Mutual TLS Verification Configuration
+
+Host verifies client certificate:
+
+```python id="c10"
+context.verify_mode = ssl.CERT_REQUIRED
+context.load_verify_locations("ca_cert.pem")
+```
+
+Client verifies host certificate:
+
+```python id="c11"
+context.verify_mode = ssl.CERT_REQUIRED
+context.load_verify_locations("ca_cert.pem")
+```
+
+Both endpoints present certificates during TLS handshake.
+
+---
+
+# Verify Certificates
+
+Check host certificate:
+
+```bash id="c12"
+openssl x509 -in host_cert.pem -text -noout
+```
+
+Check client certificate:
+
+```bash id="c13"
+openssl x509 -in client_cert.pem -text -noout
+```
+
+Verify certificate chain:
+
+```bash id="c14"
+openssl verify -CAfile ca_cert.pem host_cert.pem
+openssl verify -CAfile ca_cert.pem client_cert.pem
+```
+
+Expected:
+
+```text id="c15"
+host_cert.pem: OK
+client_cert.pem: OK
+```
+
+---
+
+# Security Benefit
+
+Using CA-signed certificates with mTLS provides:
+
+* Endpoint authentication
+* Trusted certificate validation
+* Protection against rogue clients/servers
+* Resistance against Man-in-the-Middle (MITM) attacks
+
+Only systems possessing valid CA-signed certificates can establish a session.
 
 ---
 
